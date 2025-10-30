@@ -138,6 +138,7 @@
       }
 
       isAnswerShown = false;
+      isAnswerRecorded = false; // Reset dubbel-klik beveiliging voor nieuwe kaart
       
       // Eerst kaart naar voorkant draaien
       const cardInner = document.getElementById('card-inner');
@@ -145,6 +146,12 @@
       
       if (cardInner) cardInner.style.transform = 'rotateY(0deg)';
       if (flashcard) flashcard.style.cursor = 'pointer';
+      
+      // Re-enable buttons voor nieuwe kaart
+      const correctButton = document.getElementById('correct-button');
+      const incorrectButton = document.getElementById('incorrect-button');
+      if (correctButton) correctButton.disabled = false;
+      if (incorrectButton) incorrectButton.disabled = false;
       
       // Wacht tot de flip-animatie klaar is voordat we de content updaten
       setTimeout(() => {
@@ -243,10 +250,20 @@
       }
     }
 
+    let isAnswerRecorded = false; // Voorkom dubbel klikken
+
     async function recordAnswer(isCorrect) {
+      // Voorkom dubbel klikken
+      if (isAnswerRecorded) return;
+      isAnswerRecorded = true;
+
       const feedbackElement = document.getElementById('feedback');
       const correctButton = document.getElementById('correct-button');
       const incorrectButton = document.getElementById('incorrect-button');
+
+      // Disable buttons meteen
+      correctButton.disabled = true;
+      incorrectButton.disabled = true;
 
       if (isCorrect) {
         consecutiveCorrect++;
@@ -267,9 +284,6 @@
         feedbackElement.style.color = '#ef4444';
       }
 
-      correctButton.disabled = true;
-      incorrectButton.disabled = true;
-
       const stats = cardStats.get(currentCard);
 
       if (stats) {
@@ -289,9 +303,6 @@
       // Save to localStorage
       saveData();
       updateStatsDisplay();
-
-      correctButton.disabled = false;
-      incorrectButton.disabled = false;
 
       // Automatisch naar volgende kaart na 1.5 seconden
       setTimeout(() => {
@@ -462,5 +473,5 @@
       initApp();
     }
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996b29611573b9bd',t:'MTc2MTgyOTkxOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996d5421a5f890b8',t:'MTc2MTg1MjY0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
