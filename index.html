@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="nl">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kwadraten Oefenen</title>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    html {
+      height: 100%;
+    }
+
+    /* Confetti animatie */
+    .confetti-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      overflow: hidden;
+    }
+
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #ff6b6b;
+      animation: confetti-fall 3s linear forwards;
+    }
+
+    .confetti-piece:nth-child(2n) { background: #4ecdc4; }
+    .confetti-piece:nth-child(3n) { background: #45b7d1; }
+    .confetti-piece:nth-child(4n) { background: #96ceb4; }
+    .confetti-piece:nth-child(5n) { background: #feca57; }
+    .confetti-piece:nth-child(6n) { background: #ff9ff3; }
+    .confetti-piece:nth-child(7n) { background: #54a0ff; }
+
+    @keyframes confetti-fall {
+      0% {
+        transform: translateY(-100px) rotateZ(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(100vh) rotateZ(720deg);
+        opacity: 0;
+      }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div id="app"></div>
+  <script>
+    const defaultConfig = {
+      title: "Kwadraten oefenen",
+      check_button: "Controleer",
+      next_button: "Volgende",
+      reset_button: "Reset Voortgang",
+      background_color: "#f0f4f8",
+      card_color: "#ffffff",
+      text_color: "#1a202c",
+      primary_button_color: "#3b82f6",
+      secondary_button_color: "#64748b",
+      font_family: "Segoe UI",
+      font_size: 16
+    };
+
+    let currentCard = null;
+    let cardStats = new Map();
+    let isAnswerShown = false;
+    let consecutiveCorrect = 0;
+
+    const NUMBERS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25];
+
+    const dataHandler = {
+      onDataChanged(data) {
+        cardStats.clear();
+        data.forEach(record => {
+          cardStats.set(record.number, {
+            correct: record.correct_count,
+            incorrect: record.incorrect_count,
+            lastShown: new Date(record.last_shown),
+            __backendId: record.__backendId
+          });
+        });
+        
+        if (!currentCard) {
+          selectNextCard();
+        }
+        updateStatsDisplay();
+      }
+    };
+
+    function selectNextCard() {
+      // Sluit de huidige kaart uit van de volgende keuze
+      const availableNumbers = NUMBERS.filter(num => num !== currentCard);
+      
+      const weights = availableNumbers.map(num => {
+        const stats = cardStats.get(num);
+        if (!stats) return 5; // Nieuwe kaarten krijgen normale kans
+        
+        const total = stats.correct + stats.incorrect;
+        if (total === 0) return 5;
+        
+        const errorRate = stats.incorrect / total;
+        const successRate = stats.correct / total;
+        
+        // Kaarten met meer fouten krijgen veel hogere kans
+        // Kaarten die je vaak goed hebt krijgen lagere kans
+        let weight = 1;
+        
+        if (errorRate > 0.7) {
+          weight = 20; // Heel vaak fout → zeer hoge kans
+        } else if (errorRate > 0.5) {
+          weight = 15; // Vaak fout → hoge kans
+        } else if (errorRate > 0.3) {
+          weight = 10; // Soms fout → verhoogde kans
+        } else if (successRate > 0.8 && total >= 3) {
+          weight = 0.5; // Bijna altijd goed → lage kans
+        } else {
+          weight = 5; // Normale kans
+        }
+        
+        console.log(`Kaart ${num}: ${stats.correct} goed, ${stats.incorrect} fout, errorRate: ${errorRate.toFixed(2)}, weight: ${weight}`);
+        return weight;
+      });
+
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      let random = Math.random() * totalWeight;
+      
+      for (let i = 0; i < availableNumbers.length; i++) {
+        random -= weights[i];
+        if (random <= 0) {
+          currentCard = availableNumbers[i];
+          console.log(`Gekozen kaart: ${currentCard}`);
+          break;
+        }
+      }
+
+      isAnswerShown = false;
+      
+      // Eerst kaart naar voorkant draaien
+      const cardInner = document.getElementById('card-inner');
+      const flashcard = document.getElementById('flashcard');
+      
+      if (cardInner) cardInner.style.transform = 'rotateY(0deg)';
+      if (flashcard) flashcard.style.cursor = 'pointer';
+      
+      // Wacht tot de flip-animatie klaar is voordat we de content updaten
+      setTimeout(() => {
+        const questionElement = document.getElementById('question');
+        const answerElement = document.getElementById('answer');
+        const feedbackElement = document.getElementById('feedback');
+        
+        if (questionElement) questionElement.textContent = `${currentCard}²`;
+        if (answerElement) answerElement.textContent = `${currentCard * currentCard}`;
+        if (feedbackElement) {
+          feedbackElement.textContent = '';
+          feedbackElement.className = 'feedback';
+        }
+      }, 300); // Wacht 300ms (helft van de 600ms flip animatie)
+    }
+
+    function renderCard() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const baseFontStack = 'Tahoma, Geneva, Verdana, sans-serif';
+
+      const cardElement = document.getElementById('flashcard');
+      const cardInner = document.getElementById('card-inner');
+      const questionElement = document.getElementById('question');
+      const answerElement = document.getElementById('answer');
+      const feedbackElement = document.getElementById('feedback');
+
+      questionElement.textContent = `${currentCard}²`;
+      answerElement.textContent = `${currentCard * currentCard}`;
+      feedbackElement.textContent = '';
+      feedbackElement.className = 'feedback';
+
+      if (isAnswerShown) {
+        cardInner.style.transform = 'rotateY(180deg)';
+        cardElement.style.cursor = 'default';
+      } else {
+        cardInner.style.transform = 'rotateY(0deg)';
+        cardElement.style.cursor = 'pointer';
+      }
+    }
+
+    function showAnswer() {
+      console.log('showAnswer called, isAnswerShown:', isAnswerShown);
+      if (!isAnswerShown) {
+        isAnswerShown = true;
+        const cardInner = document.getElementById('card-inner');
+        if (cardInner) {
+          cardInner.style.transform = 'rotateY(180deg)';
+          console.log('Card flipped to back');
+        }
+        const flashcard = document.getElementById('flashcard');
+        if (flashcard) {
+          flashcard.style.cursor = 'default';
+        }
+      }
+    }
+
+    function showConfetti() {
+      console.log('showConfetti called - creating CSS confetti');
+      
+      // Maak confetti container
+      const confettiContainer = document.createElement('div');
+      confettiContainer.className = 'confetti-container';
+      document.body.appendChild(confettiContainer);
+
+      // Maak 50 confetti stukjes
+      for (let i = 0; i < 50; i++) {
+        const confettiPiece = document.createElement('div');
+        confettiPiece.className = 'confetti-piece';
+        
+        // Willekeurige positie en timing
+        confettiPiece.style.left = Math.random() * 100 + '%';
+        confettiPiece.style.animationDelay = Math.random() * 0.5 + 's';
+        confettiPiece.style.animationDuration = (Math.random() * 1 + 2) + 's';
+        
+        confettiContainer.appendChild(confettiPiece);
+      }
+
+      // Verwijder confetti na animatie
+      setTimeout(() => {
+        if (confettiContainer && confettiContainer.parentNode) {
+          confettiContainer.parentNode.removeChild(confettiContainer);
+        }
+      }, 4000);
+      
+      console.log('CSS Confetti created!');
+    }
+
+    async function recordAnswer(isCorrect) {
+      const feedbackElement = document.getElementById('feedback');
+      const correctButton = document.getElementById('correct-button');
+      const incorrectButton = document.getElementById('incorrect-button');
+
+      if (isCorrect) {
+        consecutiveCorrect++;
+        if (consecutiveCorrect % 5 === 0) {
+          feedbackElement.textContent = `🎉 Fantastisch! ${consecutiveCorrect} op een rij!`;
+          feedbackElement.className = 'feedback correct';
+          feedbackElement.style.color = '#10b981';
+          showConfetti();
+        } else {
+          feedbackElement.textContent = '✓ Goed gedaan!';
+          feedbackElement.className = 'feedback correct';
+          feedbackElement.style.color = '#10b981';
+        }
+      } else {
+        consecutiveCorrect = 0;
+        feedbackElement.textContent = '✗ Volgende keer beter!';
+        feedbackElement.className = 'feedback incorrect';
+        feedbackElement.style.color = '#ef4444';
+      }
+
+      correctButton.disabled = true;
+      incorrectButton.disabled = true;
+
+      const stats = cardStats.get(currentCard);
+
+      if (stats && stats.__backendId) {
+        const result = await window.dataSdk.update({
+          __backendId: stats.__backendId,
+          number: currentCard,
+          correct_count: stats.correct + (isCorrect ? 1 : 0),
+          incorrect_count: stats.incorrect + (isCorrect ? 0 : 1),
+          last_shown: new Date().toISOString()
+        });
+
+        if (!result.isOk) {
+          console.error('Fout bij bijwerken statistieken');
+        }
+      } else {
+        const result = await window.dataSdk.create({
+          number: currentCard,
+          correct_count: isCorrect ? 1 : 0,
+          incorrect_count: isCorrect ? 0 : 1,
+          last_shown: new Date().toISOString()
+        });
+
+        if (!result.isOk) {
+          console.error('Fout bij aanmaken statistieken');
+        }
+      }
+
+      correctButton.disabled = false;
+      incorrectButton.disabled = false;
+
+      // Automatisch naar volgende kaart na 1.5 seconden
+      setTimeout(() => {
+        selectNextCard();
+      }, 1500);
+    }
+
+    function nextCard() {
+      selectNextCard();
+    }
+
+    async function resetProgress() {
+      const confirmElement = document.getElementById('reset-confirm');
+      confirmElement.style.display = 'flex';
+    }
+
+    async function confirmReset() {
+      const confirmElement = document.getElementById('reset-confirm');
+      const yesButton = document.getElementById('confirm-yes');
+      const noButton = document.getElementById('confirm-no');
+      
+      yesButton.disabled = true;
+      noButton.disabled = true;
+
+      for (const [num, stats] of cardStats.entries()) {
+        if (stats.__backendId) {
+          await window.dataSdk.delete({
+            __backendId: stats.__backendId,
+            number: num,
+            correct_count: stats.correct,
+            incorrect_count: stats.incorrect,
+            last_shown: stats.lastShown.toISOString()
+          });
+        }
+      }
+
+      consecutiveCorrect = 0; // Reset streak
+      yesButton.disabled = false;
+      noButton.disabled = false;
+      confirmElement.style.display = 'none';
+    }
+
+    function cancelReset() {
+      const confirmElement = document.getElementById('reset-confirm');
+      confirmElement.style.display = 'none';
+    }
+
+    function updateStatsDisplay() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const statsElement = document.getElementById('stats');
+      
+      if (!statsElement) return;
+      
+      let totalCorrect = 0;
+      let totalIncorrect = 0;
+
+      cardStats.forEach(stats => {
+        totalCorrect += stats.correct;
+        totalIncorrect += stats.incorrect;
+      });
+
+      const total = totalCorrect + totalIncorrect;
+      const percentage = total > 0 ? Math.round((totalCorrect / total) * 100) : 0;
+
+      const streakText = consecutiveCorrect > 1 ? ` | Streak: ${consecutiveCorrect}` : '';
+
+      statsElement.innerHTML = `
+        <div style="font-size: ${(config.font_size || defaultConfig.font_size) * 0.9}px; color: ${config.text_color || defaultConfig.text_color};">
+          <strong>Score:</strong> ${totalCorrect} goed / ${totalIncorrect} fout (${percentage}%)${streakText}
+        </div>
+      `;
+    }
+
+    async function onConfigChange(config) {
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const baseFontStack = 'Tahoma, Geneva, Verdana, sans-serif';
+
+      document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
+      document.body.style.fontFamily = `${customFont}, ${baseFontStack}`;
+
+      const container = document.getElementById('container');
+      if (container) {
+        container.style.backgroundColor = config.background_color || defaultConfig.background_color;
+      }
+
+      const titleElement = document.getElementById('title');
+      if (titleElement) {
+        titleElement.textContent = config.title || defaultConfig.title;
+        titleElement.style.color = config.text_color || defaultConfig.text_color;
+        titleElement.style.fontSize = `${baseSize * 2}px`;
+        titleElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      const cardFront = document.getElementById('card-front');
+      const cardBack = document.getElementById('card-back');
+      if (cardFront) {
+        cardFront.style.backgroundColor = config.card_color || defaultConfig.card_color;
+      }
+      if (cardBack) {
+        cardBack.style.backgroundColor = config.card_color || defaultConfig.card_color;
+      }
+
+      const questionElement = document.getElementById('question');
+      if (questionElement) {
+        questionElement.style.color = config.text_color || defaultConfig.text_color;
+        questionElement.style.fontSize = `${baseSize * 3}px`;
+        questionElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      const answerElement = document.getElementById('answer');
+      if (answerElement) {
+        answerElement.style.color = config.text_color || defaultConfig.text_color;
+        answerElement.style.fontSize = `${baseSize * 2}px`;
+        answerElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      const instructionElement = document.getElementById('instruction');
+      if (instructionElement) {
+        instructionElement.style.color = config.text_color || defaultConfig.text_color;
+        instructionElement.style.fontSize = `${baseSize * 0.875}px`;
+        instructionElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      const correctButton = document.getElementById('correct-button');
+      if (correctButton) {
+        correctButton.style.fontSize = `${baseSize}px`;
+        correctButton.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      const incorrectButton = document.getElementById('incorrect-button');
+      if (incorrectButton) {
+        incorrectButton.style.fontSize = `${baseSize}px`;
+        incorrectButton.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      const resetButton = document.getElementById('reset-button');
+      if (resetButton) {
+        resetButton.textContent = config.reset_button || defaultConfig.reset_button;
+        resetButton.style.backgroundColor = config.secondary_button_color || defaultConfig.secondary_button_color;
+        resetButton.style.fontSize = `${baseSize * 0.85}px`;
+        resetButton.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      }
+
+      updateStatsDisplay();
+      
+      // Zorg ervoor dat de kaart wordt getoond
+      if (currentCard) {
+        renderCard();
+      }
+    }
+
+    async function initApp() {
+      // Maak eerst de HTML
+      document.getElementById('app').innerHTML = `
+        <div id="container" style="min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+          <div style="max-width: 600px; width: 100%; text-align: center;">
+            <h1 id="title" style="margin: 0 0 32px 0; font-size: 32px; color: #1a202c;">Kwadraten oefenen</h1>
+            
+            <div id="flashcard" style="background-color: transparent; border-radius: 16px; margin: 0 auto 24px auto; cursor: pointer; perspective: 1000px; width: 100%; max-width: 400px; height: 300px;">
+              <div id="card-inner" style="position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d;">
+                <div id="card-front" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; box-sizing: border-box;">
+                  <div id="question" style="font-size: 48px; font-weight: bold; margin-bottom: 16px; color: #1a202c;">7²</div>
+                  <div id="instruction" style="font-size: 14px; color: #64748b;">Klik op de kaart voor het antwoord</div>
+                </div>
+                
+                <div id="card-back" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: rotateY(180deg); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; box-sizing: border-box;">
+                  <div id="answer" style="font-size: 48px; font-weight: bold; color: #1a202c; margin-bottom: 16px;">49</div>
+                  <div id="instruction-back" style="font-size: 14px; color: #64748b; margin-bottom: 24px;">Had je het goed?</div>
+                  <div id="feedback" class="feedback" style="min-height: 24px; margin-bottom: 16px; font-size: 16px; font-weight: 600;"></div>
+                  <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                    <button id="correct-button" style="background-color: #10b981; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: opacity 0.2s;">✓ Goed</button>
+                    <button id="incorrect-button" style="background-color: #ef4444; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: opacity 0.2s;">✗ Fout</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div id="stats" style="margin-bottom: 16px;">
+              <div style="font-size: 14px; color: #1a202c;">
+                <strong>Score:</strong> 0 goed / 0 fout (0%)
+              </div>
+            </div>
+            
+            <button id="reset-button" style="background-color: #64748b; color: white; border: none; padding: 8px 24px; font-size: 14px; border-radius: 8px; cursor: pointer; transition: opacity 0.2s;">Reset Voortgang</button>
+            
+            <div id="reset-confirm" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); align-items: center; justify-content: center; z-index: 1000;">
+              <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);">
+                <p style="margin: 0 0 24px 0; font-size: 18px; color: #1a202c;">Weet je zeker dat je alle voortgang wilt resetten?</p>
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                  <button id="confirm-yes" style="background-color: #ef4444; color: white; border: none; padding: 10px 24px; font-size: 16px; border-radius: 8px; cursor: pointer;">Ja, reset</button>
+                  <button id="confirm-no" style="background-color: #64748b; color: white; border: none; padding: 10px 24px; font-size: 16px; border-radius: 8px; cursor: pointer;">Annuleren</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Voeg event listeners toe
+      document.getElementById('flashcard').addEventListener('click', showAnswer);
+      document.getElementById('correct-button').addEventListener('click', (e) => {
+        e.stopPropagation();
+        recordAnswer(true);
+      });
+      document.getElementById('incorrect-button').addEventListener('click', (e) => {
+        e.stopPropagation();
+        recordAnswer(false);
+      });
+      document.getElementById('reset-button').addEventListener('click', resetProgress);
+      document.getElementById('confirm-yes').addEventListener('click', confirmReset);
+      document.getElementById('confirm-no').addEventListener('click', cancelReset);
+
+      // Hover effecten voor kaart
+      const flashcard = document.getElementById('flashcard');
+      const cardFront = document.getElementById('card-front');
+      const cardBack = document.getElementById('card-back');
+      
+      flashcard.addEventListener('mouseenter', () => {
+        if (!isAnswerShown) {
+          cardFront.style.boxShadow = '0 8px 15px rgba(0, 0, 0, 0.15)';
+          cardFront.style.transform = 'translateY(-2px)';
+        } else {
+          cardBack.style.boxShadow = '0 8px 15px rgba(0, 0, 0, 0.15)';
+          cardBack.style.transform = 'rotateY(180deg) translateY(-2px)';
+        }
+      });
+      flashcard.addEventListener('mouseleave', () => {
+        cardFront.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+        cardFront.style.transform = 'translateY(0)';
+        cardBack.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+        cardBack.style.transform = 'rotateY(180deg) translateY(0)';
+      });
+
+      // Hover effecten voor knoppen
+      const buttons = ['correct-button', 'incorrect-button', 'reset-button'];
+      buttons.forEach(buttonId => {
+        const button = document.getElementById(buttonId);
+        button.addEventListener('mouseenter', () => button.style.opacity = '0.9');
+        button.addEventListener('mouseleave', () => button.style.opacity = '1');
+      });
+
+      // Initialiseer SDK's
+      try {
+        const initResult = await window.dataSdk.init(dataHandler);
+        if (!initResult.isOk) {
+          console.error('Fout bij initialiseren Data SDK');
+        }
+      } catch (error) {
+        console.error('Data SDK fout:', error);
+      }
+
+      // Start met eerste kaart
+      selectNextCard();
+      
+      // Element SDK
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange,
+          mapToCapabilities: (config) => ({
+            recolorables: [
+              {
+                get: () => config.background_color || defaultConfig.background_color,
+                set: (value) => {
+                  config.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              },
+              {
+                get: () => config.card_color || defaultConfig.card_color,
+                set: (value) => {
+                  config.card_color = value;
+                  window.elementSdk.setConfig({ card_color: value });
+                }
+              },
+              {
+                get: () => config.text_color || defaultConfig.text_color,
+                set: (value) => {
+                  config.text_color = value;
+                  window.elementSdk.setConfig({ text_color: value });
+                }
+              },
+              {
+                get: () => config.primary_button_color || defaultConfig.primary_button_color,
+                set: (value) => {
+                  config.primary_button_color = value;
+                  window.elementSdk.setConfig({ primary_button_color: value });
+                }
+              },
+              {
+                get: () => config.secondary_button_color || defaultConfig.secondary_button_color,
+                set: (value) => {
+                  config.secondary_button_color = value;
+                  window.elementSdk.setConfig({ secondary_button_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => config.font_family || defaultConfig.font_family,
+              set: (value) => {
+                config.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: () => config.font_size || defaultConfig.font_size,
+              set: (value) => {
+                config.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          }),
+          mapToEditPanelValues: (config) => new Map([
+            ["title", config.title || defaultConfig.title],
+            ["check_button", config.check_button || defaultConfig.check_button],
+            ["next_button", config.next_button || defaultConfig.next_button],
+            ["reset_button", config.reset_button || defaultConfig.reset_button]
+          ])
+        });
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996b042a6155b9bd',t:'MTc2MTgyODM5NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
