@@ -17,6 +17,10 @@
     html {
       height: 100%;
     }
+    
+    #app {
+      min-height: 100%;
+    }
   </style>
   <style>@view-transition { navigation: auto; }</style>
   <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
@@ -45,24 +49,43 @@
 
     const NUMBERS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25];
 
-    const dataHandler = {
-      onDataChanged(data) {
-        cardStats.clear();
-        data.forEach(record => {
-          cardStats.set(record.number, {
-            correct: record.correct_count,
-            incorrect: record.incorrect_count,
-            lastShown: new Date(record.last_shown),
-            __backendId: record.__backendId
+    // Load data from localStorage
+    function loadData() {
+      const saved = localStorage.getItem('kwadraten-stats');
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          cardStats.clear();
+          Object.entries(data).forEach(([num, stats]) => {
+            cardStats.set(parseInt(num), {
+              correct: stats.correct || 0,
+              incorrect: stats.incorrect || 0,
+              lastShown: stats.lastShown ? new Date(stats.lastShown) : new Date()
+            });
           });
-        });
-        
-        if (!currentCard) {
-          selectNextCard();
+        } catch (e) {
+          console.error('Error loading saved data:', e);
         }
-        updateStatsDisplay();
       }
-    };
+      
+      if (!currentCard) {
+        selectNextCard();
+      }
+      updateStatsDisplay();
+    }
+
+    // Save data to localStorage
+    function saveData() {
+      const data = {};
+      cardStats.forEach((stats, num) => {
+        data[num] = {
+          correct: stats.correct,
+          incorrect: stats.incorrect,
+          lastShown: stats.lastShown.toISOString()
+        };
+      });
+      localStorage.setItem('kwadraten-stats', JSON.stringify(data));
+    }
 
     function selectNextCard() {
       // Sluit de huidige kaart uit van de volgende keuze
@@ -245,30 +268,23 @@
 
       const stats = cardStats.get(currentCard);
 
-      if (stats && stats.__backendId) {
-        const result = await window.dataSdk.update({
-          __backendId: stats.__backendId,
-          number: currentCard,
-          correct_count: stats.correct + (isCorrect ? 1 : 0),
-          incorrect_count: stats.incorrect + (isCorrect ? 0 : 1),
-          last_shown: new Date().toISOString()
-        });
-
-        if (!result.isOk) {
-          console.error('Fout bij bijwerken statistieken');
-        }
+      if (stats) {
+        // Update existing stats
+        stats.correct += isCorrect ? 1 : 0;
+        stats.incorrect += isCorrect ? 0 : 1;
+        stats.lastShown = new Date();
       } else {
-        const result = await window.dataSdk.create({
-          number: currentCard,
-          correct_count: isCorrect ? 1 : 0,
-          incorrect_count: isCorrect ? 0 : 1,
-          last_shown: new Date().toISOString()
+        // Create new stats
+        cardStats.set(currentCard, {
+          correct: isCorrect ? 1 : 0,
+          incorrect: isCorrect ? 0 : 1,
+          lastShown: new Date()
         });
-
-        if (!result.isOk) {
-          console.error('Fout bij aanmaken statistieken');
-        }
       }
+
+      // Save to localStorage
+      saveData();
+      updateStatsDisplay();
 
       correctButton.disabled = false;
       incorrectButton.disabled = false;
@@ -288,7 +304,7 @@
       confirmElement.style.display = 'flex';
     }
 
-    async function confirmReset() {
+    function confirmReset() {
       const confirmElement = document.getElementById('reset-confirm');
       const yesButton = document.getElementById('confirm-yes');
       const noButton = document.getElementById('confirm-no');
@@ -296,19 +312,15 @@
       yesButton.disabled = true;
       noButton.disabled = true;
 
-      for (const [num, stats] of cardStats.entries()) {
-        if (stats.__backendId) {
-          await window.dataSdk.delete({
-            __backendId: stats.__backendId,
-            number: num,
-            correct_count: stats.correct,
-            incorrect_count: stats.incorrect,
-            last_shown: stats.lastShown.toISOString()
-          });
-        }
-      }
-
+      // Clear all data
+      cardStats.clear();
+      localStorage.removeItem('kwadraten-stats');
       consecutiveCorrect = 0; // Reset streak
+      
+      // Update display
+      updateStatsDisplay();
+      selectNextCard();
+
       yesButton.disabled = false;
       noButton.disabled = false;
       confirmElement.style.display = 'none';
@@ -320,7 +332,6 @@
     }
 
     function updateStatsDisplay() {
-      const config = window.elementSdk?.config || defaultConfig;
       const statsElement = document.getElementById('stats');
       
       if (!statsElement) return;
@@ -339,90 +350,13 @@
       const streakText = consecutiveCorrect > 1 ? ` | Streak: ${consecutiveCorrect}` : '';
 
       statsElement.innerHTML = `
-        <div style="font-size: ${(config.font_size || defaultConfig.font_size) * 0.9}px; color: ${config.text_color || defaultConfig.text_color};">
+        <div style="font-size: 14px; color: #1a202c;">
           <strong>Score:</strong> ${totalCorrect} goed / ${totalIncorrect} fout (${percentage}%)${streakText}
         </div>
       `;
     }
 
-    async function onConfigChange(config) {
-      const customFont = config.font_family || defaultConfig.font_family;
-      const baseSize = config.font_size || defaultConfig.font_size;
-      const baseFontStack = 'Tahoma, Geneva, Verdana, sans-serif';
 
-      document.body.style.backgroundColor = config.background_color || defaultConfig.background_color;
-      document.body.style.fontFamily = `${customFont}, ${baseFontStack}`;
-
-      const container = document.getElementById('container');
-      if (container) {
-        container.style.backgroundColor = config.background_color || defaultConfig.background_color;
-      }
-
-      const titleElement = document.getElementById('title');
-      if (titleElement) {
-        titleElement.textContent = config.title || defaultConfig.title;
-        titleElement.style.color = config.text_color || defaultConfig.text_color;
-        titleElement.style.fontSize = `${baseSize * 2}px`;
-        titleElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      const cardFront = document.getElementById('card-front');
-      const cardBack = document.getElementById('card-back');
-      if (cardFront) {
-        cardFront.style.backgroundColor = config.card_color || defaultConfig.card_color;
-      }
-      if (cardBack) {
-        cardBack.style.backgroundColor = config.card_color || defaultConfig.card_color;
-      }
-
-      const questionElement = document.getElementById('question');
-      if (questionElement) {
-        questionElement.style.color = config.text_color || defaultConfig.text_color;
-        questionElement.style.fontSize = `${baseSize * 3}px`;
-        questionElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      const answerElement = document.getElementById('answer');
-      if (answerElement) {
-        answerElement.style.color = config.text_color || defaultConfig.text_color;
-        answerElement.style.fontSize = `${baseSize * 2}px`;
-        answerElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      const instructionElement = document.getElementById('instruction');
-      if (instructionElement) {
-        instructionElement.style.color = config.text_color || defaultConfig.text_color;
-        instructionElement.style.fontSize = `${baseSize * 0.875}px`;
-        instructionElement.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      const correctButton = document.getElementById('correct-button');
-      if (correctButton) {
-        correctButton.style.fontSize = `${baseSize}px`;
-        correctButton.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      const incorrectButton = document.getElementById('incorrect-button');
-      if (incorrectButton) {
-        incorrectButton.style.fontSize = `${baseSize}px`;
-        incorrectButton.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      const resetButton = document.getElementById('reset-button');
-      if (resetButton) {
-        resetButton.textContent = config.reset_button || defaultConfig.reset_button;
-        resetButton.style.backgroundColor = config.secondary_button_color || defaultConfig.secondary_button_color;
-        resetButton.style.fontSize = `${baseSize * 0.85}px`;
-        resetButton.style.fontFamily = `${customFont}, ${baseFontStack}`;
-      }
-
-      updateStatsDisplay();
-      
-      // Zorg ervoor dat de kaart wordt getoond
-      if (currentCard) {
-        renderCard();
-      }
-    }
 
     async function initApp() {
       // Maak eerst de HTML
@@ -514,86 +448,8 @@
         button.addEventListener('mouseleave', () => button.style.opacity = '1');
       });
 
-      // Initialiseer SDK's
-      try {
-        const initResult = await window.dataSdk.init(dataHandler);
-        if (!initResult.isOk) {
-          console.error('Fout bij initialiseren Data SDK');
-        }
-      } catch (error) {
-        console.error('Data SDK fout:', error);
-      }
-
-      // Start met eerste kaart
-      selectNextCard();
-      
-      // Element SDK
-      if (window.elementSdk) {
-        window.elementSdk.init({
-          defaultConfig,
-          onConfigChange,
-          mapToCapabilities: (config) => ({
-            recolorables: [
-              {
-                get: () => config.background_color || defaultConfig.background_color,
-                set: (value) => {
-                  config.background_color = value;
-                  window.elementSdk.setConfig({ background_color: value });
-                }
-              },
-              {
-                get: () => config.card_color || defaultConfig.card_color,
-                set: (value) => {
-                  config.card_color = value;
-                  window.elementSdk.setConfig({ card_color: value });
-                }
-              },
-              {
-                get: () => config.text_color || defaultConfig.text_color,
-                set: (value) => {
-                  config.text_color = value;
-                  window.elementSdk.setConfig({ text_color: value });
-                }
-              },
-              {
-                get: () => config.primary_button_color || defaultConfig.primary_button_color,
-                set: (value) => {
-                  config.primary_button_color = value;
-                  window.elementSdk.setConfig({ primary_button_color: value });
-                }
-              },
-              {
-                get: () => config.secondary_button_color || defaultConfig.secondary_button_color,
-                set: (value) => {
-                  config.secondary_button_color = value;
-                  window.elementSdk.setConfig({ secondary_button_color: value });
-                }
-              }
-            ],
-            borderables: [],
-            fontEditable: {
-              get: () => config.font_family || defaultConfig.font_family,
-              set: (value) => {
-                config.font_family = value;
-                window.elementSdk.setConfig({ font_family: value });
-              }
-            },
-            fontSizeable: {
-              get: () => config.font_size || defaultConfig.font_size,
-              set: (value) => {
-                config.font_size = value;
-                window.elementSdk.setConfig({ font_size: value });
-              }
-            }
-          }),
-          mapToEditPanelValues: (config) => new Map([
-            ["title", config.title || defaultConfig.title],
-            ["check_button", config.check_button || defaultConfig.check_button],
-            ["next_button", config.next_button || defaultConfig.next_button],
-            ["reset_button", config.reset_button || defaultConfig.reset_button]
-          ])
-        });
-      }
+      // Load saved data and start
+      loadData();
     }
 
     if (document.readyState === 'loading') {
@@ -602,5 +458,5 @@
       initApp();
     }
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996b0c4497b8b9bd',t:'MTc2MTgyODcyNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996b15d0020290b8',t:'MTc2MTgyOTExNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
