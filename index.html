@@ -23,6 +23,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      background-color: #f0f4f8;
     }
   </style>
   <style>@view-transition { navigation: auto; }</style>
@@ -255,7 +256,7 @@
           feedbackElement.style.color = '#10b981';
           showConfetti();
         } else {
-          feedbackElement.textContent = '✓ Goed gedaan!';
+          feedbackElement.textContent = '✓ Juist gedaan!';
           feedbackElement.className = 'feedback correct';
           feedbackElement.style.color = '#10b981';
         }
@@ -364,11 +365,11 @@
     async function initApp() {
       // Maak eerst de HTML
       document.getElementById('app').innerHTML = `
-        <div id="container" style="min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-          <div style="max-width: 600px; width: 100%; text-align: center;">
+        <div id="container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+          <div style="max-width: 800px; width: 100%; text-align: center;">
             <h1 id="title" style="margin: 0 0 32px 0; font-size: 32px; color: #1a202c;">Kwadraten oefenen</h1>
             
-            <div id="flashcard" style="background-color: transparent; border-radius: 16px; margin: 0 auto 24px auto; cursor: pointer; perspective: 1000px; width: 100%; max-width: 400px; height: 300px;">
+            <div id="flashcard" style="background-color: transparent; border-radius: 16px; margin: 0 auto 24px auto; cursor: pointer; perspective: 1000px; width: 500px; height: 309px;">
               <div id="card-inner" style="position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d;">
                 <div id="card-front" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; box-sizing: border-box;">
                   <div id="question" style="font-size: 48px; font-weight: bold; margin-bottom: 16px; color: #1a202c;">7²</div>
@@ -377,10 +378,10 @@
                 
                 <div id="card-back" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: rotateY(180deg); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; box-sizing: border-box;">
                   <div id="answer" style="font-size: 48px; font-weight: bold; color: #1a202c; margin-bottom: 16px;">49</div>
-                  <div id="instruction-back" style="font-size: 14px; color: #64748b; margin-bottom: 24px;">Had je het goed?</div>
+                  <div id="instruction-back" style="font-size: 14px; color: #64748b; margin-bottom: 24px;">Had je het juist?</div>
                   <div id="feedback" class="feedback" style="min-height: 24px; margin-bottom: 16px; font-size: 16px; font-weight: 600;"></div>
                   <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                    <button id="correct-button" style="background-color: #10b981; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: opacity 0.2s;">✓ Goed</button>
+                    <button id="correct-button" style="background-color: #10b981; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: opacity 0.2s;">✓ Juist</button>
                     <button id="incorrect-button" style="background-color: #ef4444; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: opacity 0.2s;">✗ Fout</button>
                   </div>
                 </div>
@@ -461,5 +462,5 @@
       initApp();
     }
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996b19dfa58790b8',t:'MTc2MTgyOTI4My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'996b257a142fb9bd',t:'MTc2MTgyOTc1OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
